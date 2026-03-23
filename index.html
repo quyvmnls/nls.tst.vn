@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hệ thống thi Đánh giá Năng lực số</title>
+    <link rel="stylesheet" href="style.css">
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
+</head>
+<body oncopy="return false" oncut="return false" onpaste="return false">
+
+    <div id="login-screen" class="screen active">
+        <div class="login-box">
+            <h2>ĐĂNG NHẬP HỆ THỐNG THI</h2>
+            <input type="email" id="email" placeholder="Email thí sinh" required>
+            <input type="password" id="exam-code" placeholder="Mã dự thi (Mật khẩu)" required>
+            <button onclick="login()">Vào Thi</button>
+            <p id="login-error" class="error-msg"></p>
+        </div>
+    </div>
+
+    <div id="exam-screen" class="screen">
+        <header class="top-bar">
+            <div class="user-info">Thí sinh: <span id="student-email">...</span></div>
+            <div class="exam-part" id="current-part-display">Part 1: Trắc nghiệm</div>
+            <div class="timer">Thời gian còn lại: <span id="time-display">120:00</span></div>
+        </header>
+
+        <div class="main-container">
+            <aside class="sidebar">
+                <h3>Danh sách câu hỏi</h3>
+                <div class="question-palette" id="question-palette">
+                    </div>
+                <button class="save-btn" onclick="saveDraft()">Lưu Bài Lên Máy Chủ</button>
+                <button class="submit-btn" onclick="submitExam()">Nộp Bài</button>
+            </aside>
+
+            <main class="content-area">
+                <div class="anti-cheat-warning" id="cheat-warning" style="display: none;">
+                    CẢNH BÁO: Bạn vừa chuyển tab. Hành vi này đã được ghi nhận!
+                </div>
+                <div id="question-container">
+                    <h2 id="question-number">Câu hỏi 1</h2>
+                    <p id="question-text">Đang tải dữ liệu...</p>
+                    <div id="options-container" class="options">
+                        </div>
+                </div>
+                <div class="navigation-btns">
+                    <button onclick="prevQuestion()" id="btn-prev">Câu trước</button>
+                    <button onclick="nextQuestion()" id="btn-next">Câu tiếp</button>
+                </div>
+            </main>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>

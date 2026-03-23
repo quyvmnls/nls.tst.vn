@@ -1,0 +1,84 @@
+:root {
+    --primary-color: #0056b3;
+    --bg-color: #f4f7f6;
+    --gray-unanswered: #e0e0e0;
+    --blue-answered: #4caf50;
+    --yellow-current: #ffc107;
+}
+
+body {
+    margin: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background-color: var(--bg-color); user-select: none; /* Chống bôi đen */
+}
+
+/* Các màn hình */
+.screen { display: none; }
+.screen.active { display: block; height: 100vh; }
+
+/* Đăng nhập */
+.login-box {
+    width: 350px; margin: 100px auto; padding: 30px;
+    background: white; border-radius: 8px; box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+    text-align: center;
+}
+.login-box input {
+    width: 90%; padding: 10px; margin: 10px 0; border: 1px solid #ccc; border-radius: 4px;
+}
+.login-box button, .submit-btn, .save-btn {
+    width: 100%; padding: 10px; 
+    color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold;
+}
+.submit-btn { background: #dc3545; margin-top: 10px; } /* Màu đỏ cho nút nộp bài */
+.save-btn { background: #17a2b8; } /* Màu xanh lơ cho nút lưu bài */
+.submit-btn:hover { background: #c82333; }
+.save-btn:hover { background: #138496; }
+.error-msg { color: red; font-size: 0.9em; }
+
+/* Giao diện thi */
+.top-bar {
+    background: var(--primary-color); color: white; padding: 15px 30px;
+    display: flex; justify-content: space-between; align-items: center; font-size: 1.2em;
+}
+.main-container { display: flex; height: calc(100vh - 60px); }
+
+/* Sidebar */
+.sidebar {
+    width: 250px; background: white; padding: 15px; border-right: 2px solid #ddd;
+    display: flex; flex-direction: column;
+}
+.question-palette {
+    display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px;
+    overflow-y: auto; flex-grow: 1; margin-bottom: 20px;
+}
+.q-btn {
+    padding: 10px 0; text-align: center; border: 1px solid #ccc;
+    background: var(--gray-unanswered); cursor: pointer; border-radius: 4px; font-weight: bold;
+}
+.q-btn.answered { background: var(--blue-answered); color: white; border-color: var(--blue-answered); }
+.q-btn.current { background: var(--yellow-current); color: black; border-color: #d39e00; }
+
+/* Khu vực câu hỏi */
+.content-area { flex-grow: 1; padding: 40px; background: white; overflow-y: auto; }
+.options label {
+    display: block; padding: 15px; margin: 10px 0; background: #f9f9f9;
+    border: 1px solid #ddd; border-radius: 4px; cursor: pointer; font-size: 1.1em;
+}
+.options label:hover { background: #eef2f5; }
+.essay-box { 
+    width: 100%; 
+    height: 200px; 
+    padding: 15px; 
+    font-size: 1.1em; 
+    font-family: inherit; /* Kế thừa font chữ của hệ thống */
+    resize: vertical; 
+    box-sizing: border-box; /* Giữ khung không bị tràn */
+    border: 1px solid #ccc;
+    border-radius: 4px;
+}
+
+/* Nút điều hướng */
+.navigation-btns { margin-top: 30px; display: flex; justify-content: space-between; }
+.navigation-btns button {
+    padding: 10px 20px; background: #6c757d; color: white; border: none; border-radius: 4px; cursor: pointer;
+}
+.anti-cheat-warning { background: #ffcccc; color: red; padding: 10px; margin-bottom: 15px; border: 1px solid red; border-radius: 4px; font-weight: bold; }
