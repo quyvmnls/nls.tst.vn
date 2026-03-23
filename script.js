@@ -19,65 +19,93 @@ const db = firebase.firestore();
 let questions = []; // Danh sách câu hỏi tải từ DB
 let currentQuestionIndex = 0;
 let userAnswers = {}; // Lưu đáp án thí sinh { 'id_cau_hoi': 'đáp án' }
-let totalSeconds = 120 * 60; // 120 phút
-let timerInterval;
+// Cấu hình thời gian cho từng phần (tính bằng giây)
+const partDurations = { 
+    1: 45 * 60, // Phần 1: 45 phút
+    2: 25 * 60, // Phần 2: 25 phút
+    3: 50 * 60  // Phần 3: 50 phút
+};
+let activePart = 1; // Phần thi đang đếm ngược (Mặc định bắt đầu từ phần 1)
+let partSeconds = partDurations[activePart]; // Bộ đếm lùi của phần hiện tại
 let lockedParts = []; // Danh sách các phần thi đã bị khóa
+let timerInterval;
 
-// 3. ĐĂNG NHẬP
+// === 3. ĐĂNG NHẬP ===
 function login() {
     const email = document.getElementById('email').value;
-    const password = document.getElementById('exam-code').value; // Dùng mã dự thi làm password
+    const password = document.getElementById('exam-code').value;
     const errorMsg = document.getElementById('login-error');
 
     auth.signInWithEmailAndPassword(email, password)
         .then((userCredential) => {
-            document.getElementById('login-screen').classList.remove('active');
-            document.getElementById('exam-screen').classList.add('active');
+            // 1. Tắt màn hình đăng nhập
+            const loginScreen = document.getElementById('login-screen');
+            if (loginScreen) loginScreen.classList.remove('active');
+            
+            // 2. Bật màn hình chờ (Có chốt an toàn kiểm tra HTML)
+            const waitingScreen = document.getElementById('waiting-screen');
+            if (waitingScreen) {
+                waitingScreen.classList.add('active');
+            } else {
+                alert("LỖI: Chưa tìm thấy màn hình chờ! Thầy kiểm tra lại file HTML xem đã dán đúng <div id='waiting-screen'> chưa nhé.");
+                return;
+            }
+            
+            // 3. Hiển thị email học sinh lên màn hình chờ và thanh bar
+            document.getElementById('wait-email').innerText = email;
             document.getElementById('student-email').innerText = email;
             
-            // Bật Fullscreen (Chống gian lận)
-            document.documentElement.requestFullscreen().catch(e => console.log(e));
-            
-            startExam();
+            // 4. Ép bật Fullscreen để chống gian lận
+            document.documentElement.requestFullscreen().catch(e => console.log("Trình duyệt chặn Fullscreen:", e));
         })
         .catch((error) => {
             errorMsg.innerText = "Sai Email hoặc Mã dự thi. Hoặc tài khoản chưa được tạo!";
+            console.error("Lỗi xác thực Firebase:", error);
         });
 }
 
-// 4. BẮT ĐẦU THI VÀ TẢI DỮ LIỆU THẬT
+// === 4. BẮT ĐẦU THI VÀ TẢI DỮ LIỆU THẬT ===
 async function startExam() {
+    const btnStart = document.getElementById('btn-start-exam');
+    btnStart.innerText = "Đang tải đề thi từ máy chủ...";
+    btnStart.disabled = true;
+
     try {
-        // Gọi dữ liệu từ Firebase và sắp xếp theo 'part' (Phần 1 -> 2 -> 3)
         const snapshot = await db.collection('questions').orderBy('part').get();
         
-        questions = []; // Làm rỗng danh sách trước khi nạp
-        
+        questions = [];
         snapshot.forEach(doc => {
             let q = doc.data();
-            q.id = doc.id; // Lưu lại ID thật của Firebase để dùng lúc chấm điểm
+            q.id = doc.id;
             questions.push(q);
         });
 
-        // Kiểm tra nếu chưa có câu hỏi nào
         if (questions.length === 0) {
-            alert("Hệ thống chưa có câu hỏi nào! Vui lòng nhờ Admin cập nhật đề thi.");
-            return; // Dừng lại, không cho thi
+            alert("Hệ thống chưa có câu hỏi nào! Vui lòng đẩy đề thi lên từ trang Admin.");
+            btnStart.innerText = "Nhận Đề & Bắt Đầu Thi";
+            btnStart.disabled = false;
+            return;
         }
 
-        // Khôi phục bài làm cũ nếu học sinh lỡ tay nhấn F5 (Reload)
+        // Khôi phục bài nếu lỡ F5
         const savedAnswers = localStorage.getItem('vstep_answers');
         if(savedAnswers) userAnswers = JSON.parse(savedAnswers);
 
-        // Vẽ danh sách câu hỏi và hiển thị câu đầu tiên
+        // Đóng màn hình chờ, mở màn hình thi
+        document.getElementById('waiting-screen').classList.remove('active');
+        document.getElementById('exam-screen').classList.add('active');
+
+        // Khởi động giao diện thi
         renderQuestionPalette();
-        showQuestion(0);
+        showQuestion(0, true); 
         startTimer();
         setupAntiCheat();
         
     } catch (error) {
         console.error("Lỗi tải đề thi: ", error);
         alert("Không thể tải đề thi. Vui lòng kiểm tra lại kết nối mạng!");
+        btnStart.innerText = "Nhận Đề & Bắt Đầu Thi";
+        btnStart.disabled = false;
     }
 }
 
@@ -164,10 +192,21 @@ async function startExam() {
         }
 
 // 5. HIỂN THỊ CÂU HỎI (Đã nâng cấp chức năng Khóa)
-function showQuestion(index) {
+// 5. HIỂN THỊ CÂU HỎI VÀ CHẶN NHẢY CÓC
+function showQuestion(index, skipCheck = false) {
     if(index < 0 || index >= questions.length) return;
+    
+    const targetQ = questions[index];
+    const targetPart = parseInt(targetQ.part);
+
+    // BẢO VỆ: Nếu thí sinh click vào câu hỏi của phần sau khi chưa nộp phần trước
+    if (!skipCheck && targetPart > activePart) {
+        alert(`Bạn đang ở Phần ${activePart}. Nếu làm xong, vui lòng bấm nút "Chuyển Phần Thi" ở cột bên trái để sang Phần ${targetPart}!`);
+        return; // Chặn không cho hiển thị
+    }
+
     currentQuestionIndex = index;
-    const q = questions[index];
+    const q = targetQ;
 
     document.getElementById('current-part-display').innerText = `Part ${q.part}: ${q.type.toUpperCase()}`;
     document.getElementById('question-number').innerText = `Câu hỏi ${index + 1}`;
@@ -176,18 +215,18 @@ function showQuestion(index) {
     const optionsContainer = document.getElementById('options-container');
     optionsContainer.innerHTML = '';
 
-    // Kiểm tra xem phần thi này đã bị khóa chưa
+    // Kiểm tra xem phần thi này đã bị khóa chưa (để làm mờ)
     const isLocked = lockedParts.includes(parseInt(q.part));
-    const disabledAttr = isLocked ? 'disabled' : ''; // Lệnh chặn click
+    const disabledAttr = isLocked ? 'disabled' : ''; 
 
     if (q.type === 'mcq' || q.type === 'truefalse') {
         q.options.forEach(opt => {
-            // Tự động dịch sang tiếng Việt trên giao diện
             let labelText = opt;
             if (q.type === 'truefalse') {
                 if (opt === 'True') labelText = 'Đúng';
                 if (opt === 'False') labelText = 'Sai';
             }
+
             const isChecked = userAnswers[q.id] === opt ? 'checked' : '';
             optionsContainer.innerHTML += `
                 <label style="${isLocked ? 'background: #eee; cursor: not-allowed; color: #888;' : ''}">
@@ -199,38 +238,71 @@ function showQuestion(index) {
     } else if (q.type === 'essay') {
         const savedText = userAnswers[q.id] || '';
         optionsContainer.innerHTML = `
-            <textarea class="essay-box" ${disabledAttr} placeholder="${isLocked ? 'Phần này đã khóa, không thể nhập thêm.' : 'Nhập câu trả lời...'}" oninput="saveAnswer('${q.id}', this.value)">${savedText}</textarea>
+            <textarea class="essay-box" ${disabledAttr} placeholder="${isLocked ? 'Phần này đã khóa.' : 'Nhập câu trả lời...'}" oninput="saveAnswer('${q.id}', this.value)">${savedText}</textarea>
         `;
     }
     updatePaletteUI();
 }
 
-// 7. HẸN GIỜ & TỰ ĐỘNG KHÓA PHẦN THI
+// 7. ĐỒNG HỒ ĐẾM NGƯỢC CHO TỪNG PHẦN
 function startTimer() {
+    clearInterval(timerInterval);
     timerInterval = setInterval(() => {
-        totalSeconds--;
-        const m = Math.floor(totalSeconds / 60).toString().padStart(2, '0');
-        const s = (totalSeconds % 60).toString().padStart(2, '0');
-        document.getElementById('time-display').innerText = `${m}:${s}`;
+        partSeconds--;
+        const m = Math.floor(partSeconds / 60).toString().padStart(2, '0');
+        const s = (partSeconds % 60).toString().padStart(2, '0');
+        
+        // Cập nhật text hiển thị để thí sinh biết đây là giờ của phần nào
+        document.getElementById('time-display').innerText = `Phần ${activePart}: ${m}:${s}`;
 
-        // Tính số phút đã trôi qua
-        const elapsedMinutes = 120 - (totalSeconds / 60);
-
-        // Quy tắc: Hết 45 phút -> Khóa phần 1, nhảy sang phần 2
-        if (elapsedMinutes >= 45 && !lockedParts.includes(1)) {
-            lockAndJump(1, 2);
-        }
-        // Quy tắc: Hết thêm 25 phút (Tổng 70 phút) -> Khóa phần 2, nhảy sang phần 3
-        else if (elapsedMinutes >= 70 && !lockedParts.includes(2)) {
-            lockAndJump(2, 3);
-        }
-
-        if (totalSeconds <= 0) {
+        // Khi đồng hồ của phần hiện tại chạy về 0
+        if (partSeconds <= 0) {
             clearInterval(timerInterval);
-            alert("Đã hết thời gian làm bài. Hệ thống tự động nộp bài!");
-            submitExam(true);
+            if (activePart < 3) {
+                alert(`Đã hết thời gian làm bài Phần ${activePart}! Hệ thống tự động lưu bài và chuyển sang phần tiếp theo.`);
+                forceNextPart();
+            } else {
+                alert("Đã hết toàn bộ thời gian làm bài. Hệ thống tự động nộp bài!");
+                submitExam(true);
+            }
         }
     }, 1000);
+}
+
+// === CÁC HÀM CHUYỂN PHẦN THI CHUẨN VSTEP ===
+
+// Xử lý khi thí sinh chủ động bấm nút "Chuyển Phần Thi"
+function attemptNextPart() {
+    if (activePart >= 3) return;
+
+    const nextPartName = activePart === 1 ? "2 (Đúng/Sai)" : "3 (Tự luận)";
+    const confirmMsg = `Bạn có chắc muốn sang Phần ${nextPartName} không?\n\nLƯU Ý: Khi sang phần mới, bạn sẽ KHÔNG THỂ quay lại sửa đáp án của phần trước đó!`;
+
+    if (confirm(confirmMsg)) {
+        forceNextPart();
+    }
+}
+
+// Hàm thực thi việc khóa phần cũ, nhảy phần mới
+function forceNextPart() {
+    lockedParts.push(activePart); // Khóa vĩnh viễn phần vừa làm
+    saveDraft(false); // Lưu nháp dự phòng lên máy chủ
+    
+    activePart++; // Nhảy sang phần tiếp theo
+    partSeconds = partDurations[activePart]; // Reset đồng hồ bằng đúng thời gian phần mới
+    
+    // Nếu đã sang phần cuối cùng (Phần 3), thì giấu nút "Chuyển Phần" đi
+    if (activePart === 3) {
+        document.getElementById('btn-next-part').style.display = 'none';
+    }
+    
+    // Tìm câu hỏi đầu tiên của phần mới và hiển thị ngay lập tức
+    const firstQIndex = questions.findIndex(q => parseInt(q.part) === activePart);
+    if (firstQIndex !== -1) {
+        showQuestion(firstQIndex, true); // true = Bỏ qua lớp bảo vệ để hệ thống tự nhảy
+    }
+    
+    startTimer(); // Kích hoạt lại đồng hồ
 }
 
 // 6. LƯU ĐÁP ÁN & CẬP NHẬT UI
@@ -240,10 +312,31 @@ function saveAnswer(questionId, answer) {
     updatePaletteUI();
 }
 
+// HÀM VẼ DANH SÁCH CÂU HỎI BÊN TRÁI (Đã tách phần)
 function renderQuestionPalette() {
     const palette = document.getElementById('question-palette');
     palette.innerHTML = '';
+    
+    let currentPartHeader = 0; // Biến nhớ xem đang vẽ đến phần nào
+    
     questions.forEach((q, index) => {
+        // Nếu phát hiện chuyển sang phần mới, tạo ra một dòng Tiêu đề
+        if (parseInt(q.part) !== currentPartHeader) {
+            currentPartHeader = parseInt(q.part);
+            
+            const header = document.createElement('div');
+            header.className = 'part-header';
+            
+            let partName = `Phần ${currentPartHeader}`;
+            if(currentPartHeader === 1) partName = "Phần 1: Trắc nghiệm";
+            if(currentPartHeader === 2) partName = "Phần 2: Đúng/Sai";
+            if(currentPartHeader === 3) partName = "Phần 3: Tự luận";
+            
+            header.innerText = partName;
+            palette.appendChild(header);
+        }
+        
+        // Vẽ nút câu hỏi bình thường
         const btn = document.createElement('div');
         btn.className = 'q-btn';
         btn.innerText = index + 1;

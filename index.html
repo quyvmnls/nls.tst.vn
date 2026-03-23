@@ -20,6 +20,29 @@
             <p id="login-error" class="error-msg"></p>
         </div>
     </div>
+    <div id="waiting-screen" class="screen">
+        <div class="waiting-box">
+            <h2>THÔNG TIN THÍ SINH VÀ HƯỚNG DẪN LÀM BÀI</h2>
+            
+            <div class="student-info-box">
+                <p><strong>Tài khoản / Email:</strong> <span id="wait-email">Đang tải...</span></p>
+                <p><strong>Kỳ thi:</strong> Đánh giá Năng lực số (Chuẩn cấu trúc)</p>
+                <p><strong>Trạng thái:</strong> Sẵn sàng nhận đề thi</p>
+            </div>
+
+            <div class="instructions-box">
+                <h3>Cấu trúc bài thi (Tổng thời gian: 120 phút)</h3>
+                <ul>
+                    <li><strong>Phần 1: Trắc nghiệm (40 câu - 45 phút).</strong> Chọn 1 đáp án đúng nhất (A, B, C, D). Hết thời gian, hệ thống tự khóa và chuyển sang phần 2.</li>
+                    <li><strong>Phần 2: Đúng/Sai (20 câu - 25 phút).</strong> Đọc kỹ nhận định và chọn Đúng (True) hoặc Sai (False).</li>
+                    <li><strong>Phần 3: Tự luận (2 câu - 50 phút).</strong> Gõ trực tiếp câu trả lời vào ô trống. Tự phân bổ thời gian hợp lý.</li>
+                </ul>
+                <p class="warning-text">⚠️ <strong>Lưu ý quan trọng:</strong> Khi đã chuyển phần thi, bạn KHÔNG THỂ quay lại phần trước. Nghiêm cấm thoát chế độ toàn màn hình hoặc mở tab mới trong quá trình làm bài!</p>
+            </div>
+
+            <button class="btn-start-exam" id="btn-start-exam" onclick="startExam()">Nhận Đề & Bắt Đầu Thi</button>
+        </div>
+    </div>
 
     <div id="exam-screen" class="screen">
         <header class="top-bar">
@@ -33,6 +56,8 @@
                 <h3>Danh sách câu hỏi</h3>
                 <div class="question-palette" id="question-palette">
                     </div>
+                
+                <button id="btn-next-part" class="save-btn" style="background: #ff9800; margin-bottom: 10px;" onclick="attemptNextPart()">Chuyển Phần Thi</button>
                 <button class="save-btn" onclick="saveDraft()">Lưu Bài Lên Máy Chủ</button>
                 <button class="submit-btn" onclick="submitExam()">Nộp Bài</button>
             </aside>

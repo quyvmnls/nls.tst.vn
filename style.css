@@ -50,6 +50,21 @@ body {
     display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px;
     overflow-y: auto; flex-grow: 1; margin-bottom: 20px;
 }
+
+/* THÊM MỚI ĐOẠN NÀY DÀNH CHO TIÊU ĐỀ PHẦN THI */
+.part-header {
+    grid-column: 1 / -1; /* Trải dài hết 5 cột */
+    font-weight: bold;
+    background-color: #0056b3;
+    color: white;
+    padding: 6px;
+    margin-top: 10px;
+    margin-bottom: 2px;
+    text-align: center;
+    border-radius: 4px;
+    font-size: 0.9em;
+}
+.part-header:first-child { margin-top: 0; }
 .q-btn {
     padding: 10px 0; text-align: center; border: 1px solid #ccc;
     background: var(--gray-unanswered); cursor: pointer; border-radius: 4px; font-weight: bold;
@@ -82,3 +97,32 @@ body {
     padding: 10px 20px; background: #6c757d; color: white; border: none; border-radius: 4px; cursor: pointer;
 }
 .anti-cheat-warning { background: #ffcccc; color: red; padding: 10px; margin-bottom: 15px; border: 1px solid red; border-radius: 4px; font-weight: bold; }
+/* CSS cho Màn hình Chờ */
+.waiting-box {
+    max-width: 700px; margin: 50px auto; padding: 30px;
+    background: white; border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+}
+.waiting-box h2 { 
+    text-align: center; color: var(--primary-color); 
+    border-bottom: 2px solid #eee; padding-bottom: 15px; margin-top: 0;
+}
+.student-info-box { 
+    background: #e9ecef; padding: 15px; border-radius: 5px; 
+    margin: 20px 0; font-size: 1.1em; border-left: 5px solid var(--primary-color);
+}
+.student-info-box p { margin: 8px 0; }
+.instructions-box { line-height: 1.6; }
+.instructions-box ul { padding-left: 20px; }
+.instructions-box li { margin-bottom: 10px; }
+.warning-text { 
+    color: #dc3545; background: #f8d7da; padding: 12px; 
+    border-radius: 4px; border: 1px solid #f5c6cb;
+}
+.btn-start-exam {
+    display: block; width: 100%; padding: 15px; margin-top: 25px;
+    background: #28a745; color: white; border: none; border-radius: 5px;
+    font-size: 1.2em; font-weight: bold; cursor: pointer; text-transform: uppercase;
+    transition: background 0.3s;
+}
+.btn-start-exam:hover { background: #218838; }
+.btn-start-exam:disabled { background: #6c757d; cursor: not-allowed; }
