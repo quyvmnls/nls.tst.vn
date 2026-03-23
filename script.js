@@ -18,6 +18,7 @@ const db = firebase.firestore();
 // 2. BIẾN TOÀN CỤC
 let questions = []; // Danh sách câu hỏi tải từ DB
 let currentQuestionIndex = 0;
+let currentStudentEmail = ""; // Biến lưu tài khoản học sinh đang đăng nhập
 let userAnswers = {}; // Lưu đáp án thí sinh { 'id_cau_hoi': 'đáp án' }
 // Cấu hình thời gian cho từng phần (tính bằng giây)
 const partDurations = { 
@@ -30,38 +31,38 @@ let partSeconds = partDurations[activePart]; // Bộ đếm lùi của phần hi
 let lockedParts = []; // Danh sách các phần thi đã bị khóa
 let timerInterval;
 
-// === 3. ĐĂNG NHẬP ===
+// === 3. ĐĂNG NHẬP (Bằng Firestore) ===
 function login() {
-    const email = document.getElementById('email').value;
-    const password = document.getElementById('exam-code').value;
+    const email = document.getElementById('email').value.trim();
+    const password = document.getElementById('exam-code').value.trim();
     const errorMsg = document.getElementById('login-error');
 
-    auth.signInWithEmailAndPassword(email, password)
-        .then((userCredential) => {
-            // 1. Tắt màn hình đăng nhập
-            const loginScreen = document.getElementById('login-screen');
-            if (loginScreen) loginScreen.classList.remove('active');
+    if(!email || !password) { errorMsg.innerText = "Vui lòng nhập đủ thông tin!"; return; }
+
+    // Dò tìm tài khoản trong CSDL
+    db.collection("students").doc(email).get().then((doc) => {
+        if (doc.exists && doc.data().password === password) {
             
-            // 2. Bật màn hình chờ (Có chốt an toàn kiểm tra HTML)
+            currentStudentEmail = email; // Ghi nhớ tài khoản để lát nữa nộp bài
+            const studentName = doc.data().name; // Lấy tên thật
+
+            document.getElementById('login-screen').classList.remove('active');
+            
             const waitingScreen = document.getElementById('waiting-screen');
-            if (waitingScreen) {
-                waitingScreen.classList.add('active');
-            } else {
-                alert("LỖI: Chưa tìm thấy màn hình chờ! Thầy kiểm tra lại file HTML xem đã dán đúng <div id='waiting-screen'> chưa nhé.");
-                return;
-            }
+            if (waitingScreen) waitingScreen.classList.add('active');
             
-            // 3. Hiển thị email học sinh lên màn hình chờ và thanh bar
-            document.getElementById('wait-email').innerText = email;
-            document.getElementById('student-email').innerText = email;
+            // Hiển thị Tên thật và Tài khoản lên màn hình
+            document.getElementById('wait-email').innerText = `${studentName} (${email})`;
+            document.getElementById('student-email').innerText = studentName;
             
-            // 4. Ép bật Fullscreen để chống gian lận
-            document.documentElement.requestFullscreen().catch(e => console.log("Trình duyệt chặn Fullscreen:", e));
-        })
-        .catch((error) => {
-            errorMsg.innerText = "Sai Email hoặc Mã dự thi. Hoặc tài khoản chưa được tạo!";
-            console.error("Lỗi xác thực Firebase:", error);
-        });
+            document.documentElement.requestFullscreen().catch(e => console.log(e));
+        } else {
+            errorMsg.innerText = "Sai Tài khoản hoặc Mật khẩu dự thi!";
+        }
+    }).catch(error => {
+        errorMsg.innerText = "Lỗi kết nối máy chủ!";
+        console.error(error);
+    });
 }
 
 // === 4. BẮT ĐẦU THI VÀ TẢI DỮ LIỆU THẬT ===
@@ -357,23 +358,37 @@ function updatePaletteUI() {
 
 
 // 8. NỘP BÀI LÊN FIREBASE
+// NỘP BÀI LÊN FIREBASE
 function submitExam(isAuto = false) {
     if (!isAuto && !confirm("Bạn có chắc chắn muốn nộp bài không? Không thể thay đổi sau khi nộp.")) return;
     
     clearInterval(timerInterval);
-    const user = auth.currentUser;
     
-    // Đẩy dữ liệu lên Firestore
     db.collection("submissions").add({
-        studentEmail: user.email,
+        studentEmail: currentStudentEmail, // Dùng tài khoản đang lưu ở biến toàn cục
         answers: userAnswers,
         timestamp: firebase.firestore.FieldValue.serverTimestamp()
     }).then(() => {
-        alert("Nộp bài thành công!");
-        localStorage.removeItem('vstep_answers'); // Xóa cache
-        window.location.reload(); // Thoát về trang đăng nhập
+        alert("Nộp bài thành công! Phần tự luận sẽ được giáo viên chấm sau.");
+        localStorage.removeItem('vstep_answers'); 
+        window.location.reload(); 
     }).catch(error => {
         alert("Lỗi khi nộp bài: " + error.message);
+    });
+}
+
+// LƯU NHÁP DỰ PHÒNG
+function saveDraft(showAlert = true) {
+    if(!currentStudentEmail) return;
+    
+    db.collection("drafts").doc(currentStudentEmail).set({
+        studentEmail: currentStudentEmail,
+        answers: userAnswers,
+        lastSaved: firebase.firestore.FieldValue.serverTimestamp()
+    }).then(() => {
+        if(showAlert) alert("Đã lưu bài an toàn lên máy chủ!");
+    }).catch(error => {
+        if(showAlert) alert("Có lỗi mạng, nhưng bài vẫn được lưu tạm trên máy của bạn.");
     });
 }
 
@@ -406,22 +421,4 @@ function lockAndJump(partToLock, nextPart) {
     if (firstQOfNextPart !== -1) {
         showQuestion(firstQOfNextPart);
     }
-}
-
-// Hàm Lưu Bài (Lưu nháp lên Firebase riêng biệt với file nộp chính thức)
-function saveDraft(showAlert = true) {
-    const user = auth.currentUser;
-    if(!user) return;
-    
-    // Lưu vào thư mục 'drafts' (bản nháp), lấy email học sinh làm tên file
-    db.collection("drafts").doc(user.email).set({
-        studentEmail: user.email,
-        answers: userAnswers,
-        lastSaved: firebase.firestore.FieldValue.serverTimestamp()
-    }).then(() => {
-        if(showAlert) alert("Đã lưu bài an toàn lên máy chủ!");
-    }).catch(error => {
-        console.error("Lỗi lưu nháp:", error);
-        if(showAlert) alert("Có lỗi mạng, nhưng bài vẫn được lưu tạm trên máy của bạn.");
-    });
 }
