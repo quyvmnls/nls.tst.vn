@@ -74,12 +74,35 @@ async function startExam() {
     try {
         const snapshot = await db.collection('questions').orderBy('part').get();
         
-        questions = [];
+        let p1 = [], p2 = [], p3 = []; // 3 giỏ chứa câu hỏi của 3 phần
+        
+        // Hàm hỗ trợ xáo trộn mảng (Fisher-Yates Shuffle)
+        const shuffleArray = (array) => {
+            for (let i = array.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [array[i], array[j]] = [array[j], array[i]];
+            }
+            return array;
+        };
+
         snapshot.forEach(doc => {
             let q = doc.data();
             q.id = doc.id;
-            questions.push(q);
+            
+            // Nếu là Trắc nghiệm, xáo trộn sẵn các đáp án và lưu vào một biến phụ
+            // Việc này giúp đáp án không bị nhảy loạn xạ nếu học sinh bấm "Câu trước / Câu tiếp"
+            if (q.type === 'mcq') {
+                q.randomOptions = shuffleArray([...q.options]);
+            }
+
+            // Phân loại vào từng giỏ
+            if (q.part == 1) p1.push(q);
+            else if (q.part == 2) p2.push(q);
+            else if (q.part == 3) p3.push(q);
         });
+
+        // Xóc đều từng giỏ rồi ghép lại thành danh sách câu hỏi chính thức
+        questions = [...shuffleArray(p1), ...shuffleArray(p2), ...shuffleArray(p3)];
 
         if (questions.length === 0) {
             alert("Hệ thống chưa có câu hỏi nào! Vui lòng đẩy đề thi lên từ trang Admin.");
@@ -88,15 +111,12 @@ async function startExam() {
             return;
         }
 
-        // Khôi phục bài nếu lỡ F5
         const savedAnswers = localStorage.getItem('vstep_answers');
         if(savedAnswers) userAnswers = JSON.parse(savedAnswers);
 
-        // Đóng màn hình chờ, mở màn hình thi
         document.getElementById('waiting-screen').classList.remove('active');
         document.getElementById('exam-screen').classList.add('active');
 
-        // Khởi động giao diện thi
         renderQuestionPalette();
         showQuestion(0, true); 
         startTimer();
@@ -220,15 +240,30 @@ function showQuestion(index, skipCheck = false) {
     const isLocked = lockedParts.includes(parseInt(q.part));
     const disabledAttr = isLocked ? 'disabled' : ''; 
 
-    if (q.type === 'mcq' || q.type === 'truefalse') {
-        q.options.forEach(opt => {
-            let labelText = opt;
-            if (q.type === 'truefalse') {
-                if (opt === 'True') labelText = 'Đúng';
-                if (opt === 'False') labelText = 'Sai';
-            }
-
+    if (q.type === 'mcq') {
+        // Dùng mảng đáp án đã được xáo trộn ở bước startExam
+        q.randomOptions.forEach((opt, idx) => {
             const isChecked = userAnswers[q.id] === opt ? 'checked' : '';
+            
+            // Cắt bỏ phần "A. ", "B. " cũ trong CSDL
+            const cleanText = opt.replace(/^[A-D]\.\s*/, '');
+            // Gắn lại nhãn A, B, C, D mới theo đúng thứ tự đang đứng
+            const newLabel = String.fromCharCode(65 + idx) + ". " + cleanText;
+
+            optionsContainer.innerHTML += `
+                <label style="${isLocked ? 'background: #eee; cursor: not-allowed; color: #888;' : ''}">
+                    <input type="radio" name="answer" value="${opt}" ${isChecked} ${disabledAttr} onchange="saveAnswer('${q.id}', this.value)"> 
+                    ${newLabel}
+                </label>
+            `;
+        });
+    } 
+    // -- XỬ LÝ HIỂN THỊ CÂU ĐÚNG/SAI --
+    else if (q.type === 'truefalse') {
+        q.options.forEach(opt => {
+            let labelText = (opt === 'True') ? 'Đúng' : 'Sai';
+            const isChecked = userAnswers[q.id] === opt ? 'checked' : '';
+            
             optionsContainer.innerHTML += `
                 <label style="${isLocked ? 'background: #eee; cursor: not-allowed; color: #888;' : ''}">
                     <input type="radio" name="answer" value="${opt}" ${isChecked} ${disabledAttr} onchange="saveAnswer('${q.id}', this.value)"> 
@@ -236,7 +271,9 @@ function showQuestion(index, skipCheck = false) {
                 </label>
             `;
         });
-    } else if (q.type === 'essay') {
+    } 
+    // -- XỬ LÝ CÂU TỰ LUẬN --
+     else if (q.type === 'essay') {
         const savedText = userAnswers[q.id] || '';
         optionsContainer.innerHTML = `
             <textarea class="essay-box" ${disabledAttr} placeholder="${isLocked ? 'Phần này đã khóa.' : 'Nhập câu trả lời...'}" oninput="saveAnswer('${q.id}', this.value)">${savedText}</textarea>
