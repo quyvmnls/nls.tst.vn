@@ -459,3 +459,11 @@ function lockAndJump(partToLock, nextPart) {
         showQuestion(firstQOfNextPart);
     }
 }
+// === CÁC HÀM ĐIỀU HƯỚNG CÂU HỎI ===
+function prevQuestion() { 
+    showQuestion(currentQuestionIndex - 1); 
+}
+
+function nextQuestion() { 
+    showQuestion(currentQuestionIndex + 1); 
+}
