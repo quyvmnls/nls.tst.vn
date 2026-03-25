@@ -212,23 +212,24 @@ async function startExam() {
             reader.readAsArrayBuffer(file);
         }
 
-// 5. HIỂN THỊ CÂU HỎI (Đã nâng cấp chức năng Khóa)
-// 5. HIỂN THỊ CÂU HỎI VÀ CHẶN NHẢY CÓC
+// === 5. HIỂN THỊ CÂU HỎI VÀ CHẶN NHẢY CÓC (Bản hoàn chỉnh chống lỗi) ===
 function showQuestion(index, skipCheck = false) {
+    // 1. Chặn vượt rào nếu index không hợp lệ
     if(index < 0 || index >= questions.length) return;
-    
+
     const targetQ = questions[index];
     const targetPart = parseInt(targetQ.part);
 
-    // BẢO VỆ: Nếu thí sinh click vào câu hỏi của phần sau khi chưa nộp phần trước
+    // 2. BẢO VỆ: Không cho học sinh nhảy cóc sang phần chưa thi
     if (!skipCheck && targetPart > activePart) {
         alert(`Bạn đang ở Phần ${activePart}. Nếu làm xong, vui lòng bấm nút "Chuyển Phần Thi" ở cột bên trái để sang Phần ${targetPart}!`);
-        return; // Chặn không cho hiển thị
+        return; 
     }
 
     currentQuestionIndex = index;
     const q = targetQ;
 
+    // 3. Cập nhật Tiêu đề câu hỏi
     document.getElementById('current-part-display').innerText = `Part ${q.part}: ${q.type.toUpperCase()}`;
     document.getElementById('question-number').innerText = `Câu hỏi ${index + 1}`;
     document.getElementById('question-text').innerText = q.content;
@@ -236,18 +237,18 @@ function showQuestion(index, skipCheck = false) {
     const optionsContainer = document.getElementById('options-container');
     optionsContainer.innerHTML = '';
 
-    // Kiểm tra xem phần thi này đã bị khóa chưa (để làm mờ)
+    // Kiểm tra xem phần thi này đã bị khóa chưa
     const isLocked = lockedParts.includes(parseInt(q.part));
     const disabledAttr = isLocked ? 'disabled' : ''; 
 
+    // 4. Xử lý hiển thị Đáp án
     if (q.type === 'mcq') {
-        // Dùng mảng đáp án đã được xáo trộn ở bước startExam
-        q.randomOptions.forEach((opt, idx) => {
+        // Dùng phương án dự phòng: Nếu không có random thì dùng options gốc
+        const optsToDisplay = q.randomOptions || q.options || [];
+        
+        optsToDisplay.forEach((opt, idx) => {
             const isChecked = userAnswers[q.id] === opt ? 'checked' : '';
-            
-            // Cắt bỏ phần "A. ", "B. " cũ trong CSDL
             const cleanText = opt.replace(/^[A-D]\.\s*/, '');
-            // Gắn lại nhãn A, B, C, D mới theo đúng thứ tự đang đứng
             const newLabel = String.fromCharCode(65 + idx) + ". " + cleanText;
 
             optionsContainer.innerHTML += `
@@ -257,10 +258,9 @@ function showQuestion(index, skipCheck = false) {
                 </label>
             `;
         });
-    } 
-    // -- XỬ LÝ HIỂN THỊ CÂU ĐÚNG/SAI --
-    else if (q.type === 'truefalse') {
-        q.options.forEach(opt => {
+    } else if (q.type === 'truefalse') {
+        const optsToDisplay = q.options || [];
+        optsToDisplay.forEach(opt => {
             let labelText = (opt === 'True') ? 'Đúng' : 'Sai';
             const isChecked = userAnswers[q.id] === opt ? 'checked' : '';
             
@@ -271,15 +271,32 @@ function showQuestion(index, skipCheck = false) {
                 </label>
             `;
         });
-    } 
-    // -- XỬ LÝ CÂU TỰ LUẬN --
-     else if (q.type === 'essay') {
+    } else if (q.type === 'essay') {
         const savedText = userAnswers[q.id] || '';
         optionsContainer.innerHTML = `
             <textarea class="essay-box" ${disabledAttr} placeholder="${isLocked ? 'Phần này đã khóa.' : 'Nhập câu trả lời...'}" oninput="saveAnswer('${q.id}', this.value)">${savedText}</textarea>
         `;
     }
-    updatePaletteUI();
+    
+    // 5. Cập nhật màu sắc ô vuông bên trái
+    if (typeof updatePaletteUI === "function") {
+        updatePaletteUI();
+    }
+}
+
+// === 6. CÁC HÀM ĐIỀU HƯỚNG CÂU HỎI ===
+function prevQuestion() { 
+    // Nếu đang ở câu 1 thì không lùi được nữa
+    if (currentQuestionIndex > 0) {
+        showQuestion(currentQuestionIndex - 1); 
+    }
+}
+
+function nextQuestion() { 
+    // Nếu đang ở câu cuối cùng thì không tiến được nữa
+    if (currentQuestionIndex < questions.length - 1) {
+        showQuestion(currentQuestionIndex + 1); 
+    }
 }
 
 // 7. ĐỒNG HỒ ĐẾM NGƯỢC CHO TỪNG PHẦN
@@ -458,12 +475,4 @@ function lockAndJump(partToLock, nextPart) {
     if (firstQOfNextPart !== -1) {
         showQuestion(firstQOfNextPart);
     }
-}
-// === CÁC HÀM ĐIỀU HƯỚNG CÂU HỎI ===
-function prevQuestion() { 
-    showQuestion(currentQuestionIndex - 1); 
-}
-
-function nextQuestion() { 
-    showQuestion(currentQuestionIndex + 1); 
 }
